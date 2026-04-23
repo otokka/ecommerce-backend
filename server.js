@@ -4,20 +4,23 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const Razorpay = require("razorpay");
+const crypto = require("crypto");
+
 
 
 const app = express();
 
 const razorpay = new Razorpay({
-  key_id: "rzp_test_SgUwZnzwyyfW0W",
-  key_secret: "npKm7g83RWCdH5D5YvdEsrcS"
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
 
 
 
-// ✅ MIDDLEWARE
-app.use(cors()); // 👈 THIS FIXES YOUR ERROR
+
+
+app.use(cors()); 
 app.use(express.json());
 
 // Routes
@@ -43,19 +46,48 @@ app.post("/api/payment/order", async (req, res) => {
   }
 });
 
+app.post("/api/payment/verify", (req, res) => {
+  try {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    } = req.body;
 
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
 
-// Home route
-app.get("/", (req, res) => {
-  res.send("Backend is running 🚀");
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+
+      .update(body)
+      .digest("hex");
+
+    if (expectedSignature === razorpay_signature) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ success: false });
+    }
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Verification failed");
+  }
 });
 
-// MongoDB
+
+
+
+
+app.get("/", (req, res) => {
+  res.send("Backend is running ");
+});
+
+
 mongoose.connect(process.env.MONGO_URI)
-.then(() => console.log("MongoDB Connected ✅"))
+.then(() => console.log("MongoDB Connected "))
 .catch(err => console.log(err));
 
-// Server
+
 const PORT = 5000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log("Server running on port " + PORT);
